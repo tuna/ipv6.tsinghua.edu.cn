@@ -56,7 +56,9 @@ WAN6和LAN分别改成外网IPv6和内网网卡(interface)的名字，注意不�
 default from 2402:f000:x:xxxx::/64 via fe80::xxxx:xxxx:xxxx:xxxx dev eth0  proto static  metric 512
 ```
 
-这样坑爹的网关，在转发NAT包的时候会有问题，需要把去掉`from 2402:f000:x:xxxx::/64`这一部分的以后的默认路由添加到路由表中。可以新建一个`/etc/hotplug.d/iface/99-ipv6`，它的内容是
+这样坑爹的网关，在转发NAT包的时候会有问题，需要把去掉`from 2402:f000:x:xxxx::/64`这一部分的以后的默认路由添加到路由表中。
+下面有两个方法可以选择
+1. 可以新建一个`/etc/hotplug.d/iface/99-ipv6`，它的内容是
 
 ```bash
 #!/bin/sh
@@ -72,3 +74,13 @@ logger -t IPv6 "Add IPv6 default route."
 ```
 chmod +x /etc/hotplug.d/iface/99-ipv6
 ```
+
+2. 新建 `/etc/odhcp6c.user`
+如果上述内容不起作用（尤其是当你的 IPv6 WAN 是 wlanX 这种不能在 ifup 的时候就能获取到 IPv6 地址的情况下），你可以新建一个`/etc/odhcp6c.user`文件内容如下
+
+```bash
+#!/bin/sh
+ip -6 route add `ip -6 route show default|sed -e 's/from [^ ]* //'`
+logger -t IPv6 "Add IPv6 default route."
+```
+因为 odhcpd 负责 IPv6 地址的获取和添加，odchpd 启动时会调用 `/lib/netifd/dhcpv6.script`，在运行完毕后会执行 `/etc/odhcp6c.user`，我们借此修改路由
